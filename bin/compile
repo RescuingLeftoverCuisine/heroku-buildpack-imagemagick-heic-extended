@@ -147,7 +147,10 @@ else
   ########################################
 
   echo "[INFO] Building ImageMagick with HEIC support..."
-  curl -fsSL "https://imagemagick.org/archive/releases/ImageMagick-${IMAGEMAGICK_VERSION}.tar.gz" -o ImageMagick.tar.gz || {
+  # imagemagick.org/archive/releases prunes old releases, so a pinned version there
+  # 404s as soon as upstream ships a newer one. GitHub tag archives are permanent,
+  # and ImageMagick checks `configure` into the tree, so ./configure still works.
+  curl -fsSL "https://github.com/ImageMagick/ImageMagick/archive/refs/tags/${IMAGEMAGICK_VERSION}.tar.gz" -o ImageMagick.tar.gz || {
     echo "[ERROR] Failed to download ImageMagick ${IMAGEMAGICK_VERSION}."
     exit 1
   }
