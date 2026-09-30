@@ -10,7 +10,9 @@ INSTALL_DIR="$BUILD_DIR/vendor"
 LIBDE265_VERSION=1.0.8
 LIBHEIF_VERSION=1.18.0
 IMAGEMAGICK_VERSION=7.1.2-15
-CACHE_KEY="im-${IMAGEMAGICK_VERSION}_heif-${LIBHEIF_VERSION}_de265-${LIBDE265_VERSION}"
+# STACK is in the key because the binaries link the stack's system libs (libtiff, libjpeg, ...).
+# Without it, a build from an older stack is restored on a newer one and dies on missing .so files.
+CACHE_KEY="im-${IMAGEMAGICK_VERSION}_heif-${LIBHEIF_VERSION}_de265-${LIBDE265_VERSION}_${STACK:-unknown-stack}"
 CACHE_VENDOR_DIR="$CACHE_DIR/vendor-$CACHE_KEY"
 JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}
 
@@ -236,6 +238,13 @@ echo "[INFO] Verifying ImageMagick HEIC support..."
 optional_step "$INSTALL_DIR/bin/magick" -version
 "$INSTALL_DIR/bin/magick" -list format | grep -i heic || true
 ldd "$INSTALL_DIR/bin/magick" | grep -E "libheif|libde265" || true
+
+# A binary with unresolved shared libs is useless at runtime; fail the build instead of shipping it.
+if ldd "$INSTALL_DIR/bin/magick" | grep -q "not found"; then
+  echo "[ERROR] magick has unresolved shared libraries:"
+  ldd "$INSTALL_DIR/bin/magick" | grep "not found"
+  exit 1
+fi
 
 ########################################
 # Runtime environment (Heroku dynos)
