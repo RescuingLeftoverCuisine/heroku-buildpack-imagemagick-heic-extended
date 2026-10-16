@@ -23,13 +23,6 @@ export LD_LIBRARY_PATH="$INSTALL_DIR/lib:${LD_LIBRARY_PATH:-}"
 export PKG_CONFIG_PATH="$INSTALL_DIR/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
 export MAGICK_CONFIGURE_PATH="$INSTALL_DIR/etc/ImageMagick-7"
 
-optional_step() {
-  "$@" || {
-    echo "[WARN] Optional step failed (continuing): $*"
-    return 0
-  }
-}
-
 if [ -x "$CACHE_VENDOR_DIR/bin/magick" ]; then
   echo "[INFO] Restoring cached ImageMagick build: $CACHE_KEY"
   rm -rf "$INSTALL_DIR"
@@ -231,13 +224,13 @@ else
 fi
 
 ########################################
-# Verify during build (optional)
+# Verify during build
 ########################################
 
+# Every check here is fatal. A broken magick must fail the build, not ship:
+# on the heroku-22 -> heroku-26 move a stale cached binary (libtiff.so.5 missing)
+# only warned here, the build went green, and every upload 500'd at runtime.
 echo "[INFO] Verifying ImageMagick HEIC support..."
-optional_step "$INSTALL_DIR/bin/magick" -version
-"$INSTALL_DIR/bin/magick" -list format | grep -i heic || true
-ldd "$INSTALL_DIR/bin/magick" | grep -E "libheif|libde265" || true
 
 # A binary with unresolved shared libs is useless at runtime; fail the build instead of shipping it.
 if ldd "$INSTALL_DIR/bin/magick" | grep -q "not found"; then
@@ -245,6 +238,18 @@ if ldd "$INSTALL_DIR/bin/magick" | grep -q "not found"; then
   ldd "$INSTALL_DIR/bin/magick" | grep "not found"
   exit 1
 fi
+
+"$INSTALL_DIR/bin/magick" -version || {
+  echo "[ERROR] magick -version failed; the binary cannot run on this stack."
+  exit 1
+}
+
+"$INSTALL_DIR/bin/magick" -list format | grep -i heic || {
+  echo "[ERROR] HEIC is not in magick's format list; libheif was not linked."
+  exit 1
+}
+
+ldd "$INSTALL_DIR/bin/magick" | grep -E "libheif|libde265" || true
 
 ########################################
 # Runtime environment (Heroku dynos)
